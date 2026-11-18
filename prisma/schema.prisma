@@ -1,0 +1,171 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Plant {
+  plant String @id
+  name  String
+}
+
+model Item {
+  itemCode      String @id @map("item_code")
+  description   String
+  uom           String
+  category      String
+  itemType      String @map("item_type")
+  standardPrice Float  @map("standard_price")
+
+  @@map("items")
+}
+
+model Supplier {
+  supplierId    String @id @map("supplier_id")
+  name          String
+  city          String
+  categories    String
+  status        String
+  onTimePct     Float  @map("on_time_pct")
+  qualityRating Float  @map("quality_rating")
+
+  @@map("suppliers")
+}
+
+model PoHistory {
+  poNumber        String  @id @map("po_number")
+  poDate          String  @map("po_date")
+  supplierId      String  @map("supplier_id")
+  itemCode        String  @map("item_code")
+  quantity        Float
+  uom             String
+  unitPrice       Float   @map("unit_price")
+  plant           String
+  deliveredOnTime Boolean @map("delivered_on_time")
+
+  @@map("po_history")
+}
+
+model Contract {
+  contractId    String         @id @map("contract_id")
+  supplierId    String         @map("supplier_id")
+  supplierName  String         @map("supplier_name")
+  startDate     String         @map("start_date")
+  endDate       String         @map("end_date")
+  valueCap      Float          @map("value_cap")
+  consumedValue Float          @default(0) @map("consumed_value")
+  sourceType    String         @default("REGISTER") @map("source_type")
+  pdfFilename   String?        @map("pdf_filename")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  lines         ContractLine[]
+
+  @@map("contracts")
+}
+
+model ContractLine {
+  id          Int      @id @default(autoincrement())
+  contractId  String   @map("contract_id")
+  itemCode    String   @map("item_code")
+  description String
+  uom         String
+  rate        Float
+  contract    Contract @relation(fields: [contractId], references: [contractId], onDelete: Cascade)
+
+  @@map("contract_lines")
+}
+
+model PolicyVersion {
+  id            Int       @id @default(autoincrement())
+  version       String
+  title         String
+  effectiveDate String    @map("effective_date")
+  status        String    @default("DRAFT") // DRAFT | ACTIVE | SUPERSEDED
+  rulesJson     Json      @map("rules_json")
+  changeSummary String?   @map("change_summary")
+  sourceText    String?   @map("source_text")
+  createdBy     String    @default("Procurement") @map("created_by")
+  approvedBy    String?   @map("approved_by")
+  approvedAt    DateTime? @map("approved_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  @@map("policy_versions")
+}
+
+model PrBatch {
+  id            Int           @id @default(autoincrement())
+  name          String
+  policyVersion String        @map("policy_version")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  lines         PrLine[]
+  requirements  Requirement[]
+
+  @@map("pr_batches")
+}
+
+model PrLine {
+  id                 Int     @id @default(autoincrement())
+  batchId            Int     @map("batch_id")
+  prNo               String  @map("pr_no")
+  prLine             Int     @map("pr_line")
+  createdAt          String  @map("created_at")
+  requester          String
+  department         String
+  plant              String
+  itemCode           String? @map("item_code")
+  description        String
+  quantity           Float
+  uom                String
+  estimatedUnitPrice Float?  @map("estimated_unit_price")
+  needByDate         String  @map("need_by_date")
+  urgency            String  @default("Normal")
+  batch              PrBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@map("pr_lines")
+}
+
+model Requirement {
+  id                   Int           @id @default(autoincrement())
+  batchId              Int           @map("batch_id")
+  groupId              String        @map("group_id")
+  resolvedItemCode     String        @map("resolved_item_code")
+  plant                String
+  requirementDate      String        @map("requirement_date")
+  isEmergency          Boolean       @default(false) @map("is_emergency")
+  totalQuantity        Float         @map("total_quantity")
+  unitPrice            Float?        @map("unit_price")
+  groupValueInr        Float?        @map("group_value_inr")
+  decision             String
+  route                String
+  supplierId           String?       @map("supplier_id")
+  poId                 String?       @map("po_id")
+  suggestedSupplierIds String?       @map("suggested_supplier_ids")
+  policyVersion        String        @map("policy_version")
+  reason               String
+  status               String        @default("PENDING") // PENDING | APPROVED | OVERRIDDEN
+  overrideRoute        String?       @map("override_route")
+  overrideSupplierId   String?       @map("override_supplier_id")
+  overrideComment      String?       @map("override_comment")
+  actedBy              String?       @map("acted_by")
+  actedAt              DateTime?     @map("acted_at")
+  batch                PrBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  actions              BuyerAction[]
+
+  @@map("requirements")
+}
+
+model BuyerAction {
+  id               Int         @id @default(autoincrement())
+  requirementId    Int         @map("requirement_id")
+  actionType       String      @map("action_type")
+  actor            String
+  comment          String?
+  previousDecision String?     @map("previous_decision")
+  newDecision      String?     @map("new_decision")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  requirement      Requirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+
+  @@map("buyer_actions")
+}
